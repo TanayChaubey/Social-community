@@ -1,0 +1,222 @@
+# Defence Brats Social Network - Development Docker Compose
+# Optimized for local development with hot reloading and debugging
+
+version: '3.8'
+
+services:
+  # ===================================
+  # Development Application
+  # ===================================
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: defence-brats-app-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - MONGODB_URL=mongodb://mongodb:27017/defence-brats-dev
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret-key-for-development-only
+      - JWT_REFRESH_SECRET=dev-refresh-secret-key-for-development-only
+      - SKIP_EMAIL_VERIFICATION=true
+      - DEBUG=true
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - defence-brats-dev-network
+    volumes:
+      # Mount source code for hot reloading
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # ===================================
+  # Development WebSocket Server
+  # ===================================
+
+  websocket:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: defence-brats-websocket-dev
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - WS_PORT=3001
+      - MONGODB_URL=mongodb://mongodb:27017/defence-brats-dev
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev-jwt-secret-key-for-development-only
+      - DEBUG=true
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - defence-brats-dev-network
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run websocket:dev
+
+  # ===================================
+  # Development Database Services
+  # ===================================
+
+  mongodb:
+    image: mongo:7.0
+    container_name: defence-brats-mongodb-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=defence-brats-dev
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=devpassword123
+    volumes:
+      - mongodb-dev-data:/data/db
+      - ./scripts/mongo-init-dev.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - defence-brats-dev-network
+    command: mongod --noauth
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: defence-brats-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - defence-brats-dev-network
+    command: redis-server --appendonly yes
+
+  # ===================================
+  # Development Tools
+  # ===================================
+
+  # MongoDB Express (Development UI)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: defence-brats-mongo-express-dev
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_URL=mongodb://mongodb:27017/
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - defence-brats-dev-network
+
+  # Redis Commander (Development UI)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: defence-brats-redis-commander-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - defence-brats-dev-network
+
+  # MinIO (S3-compatible storage for development)
+  minio:
+    image: minio/minio:latest
+    container_name: defence-brats-minio-dev
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    volumes:
+      - minio-dev-data:/data
+    networks:
+      - defence-brats-dev-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===================================
+  # Testing Services
+  # ===================================
+
+  # Test Database (isolated from dev database)
+  mongodb-test:
+    image: mongo:7.0
+    container_name: defence-brats-mongodb-test
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=defence-brats-test
+    volumes:
+      - mongodb-test-data:/data/db
+    networks:
+      - defence-brats-dev-network
+    command: mongod --noauth
+    profiles:
+      - testing
+
+  redis-test:
+    image: redis:7.2-alpine
+    container_name: defence-brats-redis-test
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-test-data:/data
+    networks:
+      - defence-brats-dev-network
+    profiles:
+      - testing
+
+# ===================================
+# Networks
+# ===================================
+networks:
+  defence-brats-dev-network:
+    driver: bridge
+
+# ===================================
+# Volumes
+# ===================================
+volumes:
+  # Development database volumes
+  mongodb-dev-data:
+    driver: local
+  redis-dev-data:
+    driver: local
+  minio-dev-data:
+    driver: local
+
+  # Testing database volumes
+  mongodb-test-data:
+    driver: local
+  redis-test-data:
+    driver: local
