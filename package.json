@@ -1,12 +1,26 @@
 {
-  "name": "compyle-next",
-  "version": "0.1.0",
+  "name": "defence-brats",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "websocket": "node src/lib/websocket-server.js",
+    "websocket:dev": "nodemon src/lib/websocket-server.js",
+    "db:seed": "node scripts/seed-database.js",
+    "db:migrate": "node scripts/migrate-database.js",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "docker:dev:down": "docker-compose -f docker-compose.dev.yml down",
+    "docker:prod": "docker-compose up --build -d",
+    "docker:prod:down": "docker-compose down",
+    "healthcheck": "node scripts/healthcheck.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.937.0",
