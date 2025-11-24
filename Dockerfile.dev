@@ -1,0 +1,40 @@
+# Defence Brats Social Network - Development Dockerfile
+# Optimized for local development with hot reloading and debugging
+
+# Use Node.js base image
+FROM node:20-alpine
+
+# Install development dependencies
+RUN apk add --no-cache \
+    libc6-compat \
+    openssl \
+    ca-certificates \
+    curl \
+    bash \
+    git
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Copy the rest of the application code
+COPY . .
+
+# Create non-root user for development
+RUN addgroup --system --gid 1001 defence-brats && \
+    adduser --system --uid 1001 defence-brats && \
+    chown -R defence-brats:defence-brats /app
+
+# Switch to non-root user
+USER defence-brats
+
+# Expose ports
+EXPOSE 3000 3001
+
+# Default command for development
+CMD ["npm", "run", "dev"]
